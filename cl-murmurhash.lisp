@@ -95,12 +95,10 @@
   #-abcl (closer-mop:slot-definition-name slot)
   #+abcl (aref slot 1))
 
-(defun object->plist (object)
-  (reduce (lambda (accum slot)
-            (let ((slot-name (slot-definition-name slot)))
-              (list* slot-name (slot-value object slot-name) accum)))
-          (closer-mop:class-slots (class-of object))
-          :initial-value nil))
+(defun object->slot-values (object)
+  (mapcar (lambda (slot)
+            (slot-value object (slot-definition-name slot)))
+          (closer-mop:class-slots (class-of object))))
 
 
 ;;;; The actual implementation.
@@ -417,7 +415,7 @@
         ((eql (class-of class) (find-class 'structure-class))
          ;; all structs have identical sxhashes in SBCL, ACL, and probably
          ;; other implementations, so hash on their contents instead
-         (murmurhash (list* class (object->plist object))
+         (murmurhash (list* class (object->slot-values object))
                      :seed seed :mix-only mix-only))
         (t
          ;; other objects' sxhashes are typically unique via pointer identity,
