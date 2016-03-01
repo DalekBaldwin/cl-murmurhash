@@ -6,6 +6,7 @@
   :license "MIT"
   :serial t
   :depends-on (#:babel
+               #:closer-mop
                #+sbcl #:sb-rotate-byte)
   :components ((:file "package")
                (:file "cl-murmurhash")))

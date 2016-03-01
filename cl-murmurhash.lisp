@@ -91,6 +91,17 @@
                 `(,(car hole) ,needle ,@(cdr hole)))
              ,@(rest holes)))))
 
+(defun slot-definition-name (slot)
+  #-abcl (closer-mop:slot-definition-name slot)
+  #+abcl (aref slot 1))
+
+(defun object->plist (object)
+  (reduce (lambda (accum slot)
+            (let ((slot-name (slot-definition-name slot)))
+              (list* slot-name (slot-value object slot-name) accum)))
+          (closer-mop:class-slots (class-of object))
+          :initial-value nil))
+
 
 ;;;; The actual implementation.
 
@@ -398,16 +409,20 @@
 
 ;;;; Methods to hash literal objects.
 
-(define-condition unhashable-object-error (error)
-  ((object :initarg :object))
-  (:report (lambda (condition stream)
-             (format stream "Don't know how to hash ~S"
-                     (slot-value condition 'object)))))
-
 (defgeneric murmurhash (object &key)
   (:documentation "Hash OBJECT using the 32-bit MurmurHash3 algorithm.")
-  (:method ((object t) &key &allow-other-keys)
-    (error 'unhashable-object-error :object object)))
+  (:method ((object t) &key (seed *default-seed*) mix-only)
+    (let ((class (class-of object)))
+      (cond
+        ((eql (class-of class) (find-class 'structure-class))
+         ;; all structs have identical sxhashes in SBCL, ACL, and probably
+         ;; other implementations, so hash on their contents instead
+         (murmurhash (list* class (object->plist object))
+                     :seed seed :mix-only mix-only))
+        (t
+         ;; other objects' sxhashes are typically unique via pointer identity,
+         ;; so we can just murmurhash the sxhash to get a nice distribution
+         (hash-integer (sxhash object) seed mix-only))))))
 
 (defmethod murmurhash ((i integer) &key (seed *default-seed*) mix-only)
   (hash-integer i seed mix-only))
